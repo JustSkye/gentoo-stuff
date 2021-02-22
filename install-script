@@ -26,7 +26,7 @@ ROOT_PARTITION=/dev/nvme0n1p9
 ROOT_FS_TYPE=ext4
 
 STAGE3=stage3* # Have the stage3 in the same folder as this script
-KERNEL_CONFIG_FILE=$(pwd).config # Have the kernel config in the same folder as this script
+KERNEL_CONFIG_FILE=$(pwd)/.config # Have the kernel config in the same folder as this script
 
 HOSTNAME="amichan"
 
@@ -59,7 +59,7 @@ install_gentoo_prep ()
   command mkswap -f $SWAP_PARTITION
   command swapon $SWAP_PARTITION
   message "Formating Root Partition"
-  command mkfs.${ROOT_FS_TYPE} -f $ROOT_PARTITION
+  command mkfs.${ROOT_FS_TYPE} $ROOT_PARTITION
 
   #Mount Disks
   message "Mounting Root and Boot partitions"
@@ -118,8 +118,6 @@ install_gentoo_chroot()
   #Portage
   message "Installing portage snapshot"
   command emerge-webrsync
-  message "Updating portage tree"
-  command emerge --sync
 
   message "Configuring /etc/portage/make.conf"
   cat << EOF > /etc/portage/make.conf
@@ -147,15 +145,14 @@ GENTOO_MIRRORS="https://mirror.leaseweb.com/gentoo/"
 EOF
 
   #Installation
-  message "Setting Profile"
-  command profile_no=\$(eselect profile list | grep '$PROFILE' | tail -n1 | cut -d'[' -f2 | cut -d']' -f1)
-  command eselect profile set \$profile_no
+  #message "Setting Profile"
+  #command eselect profile set 1
 
   message "Updating @world set"
   command emerge --ask --update --deep --newuse --quiet @world
 
   message "Installing filesystem packages"
-  command emerge --ask $PACKAGES
+  command emerge --ask --quiet $PACKAGES
 
   message "Configuring timezone"
   command echo "$TIMEZONE" > /etc/timezone
