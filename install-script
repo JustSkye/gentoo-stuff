@@ -3,6 +3,19 @@
 # This is a modified version of
 # https://github.com/tashrifsanil/Gentoo-Install-Scripts
 
+# -------------------------
+# Notes to self about usage
+# -------------------------
+# Before running:
+#  * Make the required partitions
+#  * Check internet connection
+#  * 
+# 
+# After running:
+#  * Change root password 
+#
+
+
 LRED='\033[01;31m'
 GREEN='\033[0;32m'
 LCYAN='\033[1;36m'
@@ -15,8 +28,8 @@ MOUNT_LOCATION=/mnt/gentoo
 TIMEZONE=Europe/Helsinki
 
 CFLAGS="-march=znver2 -O2 -pipe"
-USE_FLAGS="-suid -systemd -aqua -gnome -emacs -xemacs X xinerama alsa pulseaudio elogind"
-MAKE_OPTIONS="-j8"
+USE_FLAGS="-suid -systemd X alsa pulseaudio elogind"
+MAKE_OPTIONS="-j6"
 
 BIOS_PARTITION=/dev/nvme0n1p6
 BOOT_PARTITION=/dev/nvme0n1p7
@@ -51,21 +64,21 @@ command ()
 
 install_gentoo_prep ()
 {
-  #Disk Setup
+  # Disk Setup
   message "Beginning Installation Process"
   message "Formating Boot Partition"
-  command mkfs.vfat $BOOT_PARTITION
+  command mkfs.fat -F 32 $BOOT_PARTITION
   message "Formating Swap Partition"
-  command mkswap -f $SWAP_PARTITION
+  command mkswap $SWAP_PARTITION
   command swapon $SWAP_PARTITION
   message "Formating Root Partition"
   command mkfs.${ROOT_FS_TYPE} $ROOT_PARTITION
 
-  #Mount Disks
+  # Mount Disks
   message "Mounting Root and Boot partitions"
   command mount -v $ROOT_PARTITION $MOUNT_LOCATION
-  command mkdir -pv ${MOUNT_LOCATION}/boot
-  command mount -v $BOOT_PARTITION ${MOUNT_LOCATION}/boot
+  command mkdir -pv ${MOUNT_LOCATION}/boot/efi
+  command mount -v $BOOT_PARTITION ${MOUNT_LOCATION}/boot/efi
 
   message "Make sure that date and time is set correctly, if it isn't then it can cause problems in the future"
   command date
@@ -77,7 +90,7 @@ install_gentoo_prep ()
     command date $CORRECTED_DATE
   fi
 
-  #Stage3 Tarball
+  # Stage3 Tarball
   message "Copying stage3 tarball to system"
   command cp -rv $STAGE3 $MOUNT_LOCATION
   command cd $MOUNT_LOCATION
@@ -91,14 +104,14 @@ install_gentoo_prep ()
 
 
   message "Copying kernel configuration files"
-  command cp -rv $KERNEL_CONFIG_FILE ${MOUNT_LOCATION}/kernel-config
+  command cp -v $KERNEL_CONFIG_FILE ${MOUNT_LOCATION}/kernel-config
 
-  ##Chroot
+  # Chroot
   message "Copying DNS info"
-  command cp -L /etc/resolv.conf ${MOUNT_LOCATION}/etc/
+  command cp --dereference /etc/resolv.conf ${MOUNT_LOCATION}/etc/
 
   message "Mounting Necessary Filesystems"
-  command mount -t proc proc /mnt/gentoo/proc
+  command mount --types proc /proc /mnt/gentoo/proc
   command mount --rbind /sys /mnt/gentoo/sys
   command mount --make-rslave /mnt/gentoo/sys
   command mount --rbind /dev /mnt/gentoo/dev
@@ -115,9 +128,14 @@ install_gentoo_chroot()
   command source /etc/profile
   command export PS1="(chroot) $PS1"
 
-  #Portage
+  # Portage
   message "Installing portage snapshot"
   command emerge-webrsync
+
+  # Set profile
+  message "Setting profile"
+  command eselect profile list
+  command eselect profile set default/linux/amd64/17.1
 
   message "Configuring /etc/portage/make.conf"
   cat << EOF > /etc/portage/make.conf
@@ -130,23 +148,19 @@ FCFLAGS="${COMMON_FLAGS}"
 FFLAGS="${COMMON_FLAGS}"
 
 PORTAGE_NICENESS=1
-MAKEOPTS="-j8 -l8"
-EMERGE_DEFAULT_MAKEOPTS="--jobs=8 --load-average=8"
+MAKEOPTS="-j6 -l6"
+EMERGE_DEFAULT_MAKEOPTS="--jobs=6 --load-average=6"
 
 FEATURES="parallel-install"
 ACCEPT_KEYWORDS="~amd64"
 VIDEO_CARDS="amdgpu"
 
-USE="-suid -systemd -aqua -gnome -emacs -xemacs X xinerama alsa pulseaudio elogind"
+USE="-suid -systemd X alsa pulseaudio elogind"
 
 GRUB_PLATFORMS="efi-64"
 
 GENTOO_MIRRORS="https://mirror.leaseweb.com/gentoo/"
 EOF
-
-  #Installation
-  #message "Setting Profile"
-  #command eselect profile set 1
 
   message "Updating @world set"
   command emerge --ask --update --deep --newuse --quiet @world
@@ -156,7 +170,7 @@ EOF
 
   message "Configuring timezone"
   command echo "$TIMEZONE" > /etc/timezone
-  command emerge --quiet --config sys-libs/timezone-data
+  command emerge --config sys-libs/timezone-data
 
   message "Writing /etc/locale.gen file"
   cat << EOF > /etc/locale.gen
@@ -174,12 +188,10 @@ EOF
 
   message "Cleaning Kernel source folder"
   command cd /usr/src/linux/
-  command make clean
-  command make mrproper
   
   message "Loading kernel configuration file"
   command mv -v /kernel-config /usr/src/linux/.config-gentoo-final
-  command cp -rv /usr/src/linux/.config-gentoo-final /usr/src/linux/.config
+  command cp -v /usr/src/linux/.config-gentoo-final /usr/src/linux/.config
 
   message "Beginning Kernel Compilation Process"
   command make $MAKE_OPTIONS
@@ -189,9 +201,9 @@ EOF
   message "Removing old kernel files"
   command rm -rf /boot/*old
   
-  message "Creating bootx64.efi, (Meant for UEFI systems)"
-  command mkdir -pv /boot/efi/boot
-  command cp /boot/vmlinuz-* /boot/efi/boot/bootx64.efi
+  #message "Creating bootx64.efi, (Meant for UEFI systems)"
+  #command mkdir -pv /boot/efi/boot
+  #command cp /boot/vmlinuz-* /boot/efi/boot/bootx64.efi
 
   message "Installing genkernel"
   command emerge --ask sys-kernel/genkernel
@@ -221,6 +233,9 @@ ${SWAP_PARTITION}               none            swap            sw              
 ${ROOT_PARTITION}               /               ext4           noatime            0 1
 EOF
 
+  message "Downloading firmware"
+  command emerge --ask --autounmask-continue sys-kernel/linux-firmware
+  
   message "Setting Hostname"
   command sed -i "s/localhost/$HOSTNAME/g" /etc/conf.d/hostname
   message "Creating /etc/conf.d/net"
@@ -235,13 +250,16 @@ EOF
   message "Configuring Bootloader"
   command emerge --ask sys-boot/grub:2
   message "Installing grub2"
-  command grub2-install --target=x86_64-efi --efi-directory=/boot
-  command grub2-mkconfig -o /boot/grub/grub.cfg
+  command grub-install --target=x86_64-efi --efi-directory=/boot/efi
+  command grub-mkconfig -o /boot/grub/grub.cfg
+
+  message "Testing setting a password from here, not sure if this works"
+  command passwd
 
   message "Base installation has finished but there are still some steps that have to be done"
 }
 
-#exporting necessary functions and variables
+# Exporting necessary functions and variables
 export -f install_gentoo_chroot
 export -f message
 export -f command
@@ -268,3 +286,4 @@ export MAKE_OPTIONS
 export HOSTNAME
 
 install_gentoo_prep
+
