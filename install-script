@@ -132,6 +132,9 @@ install_gentoo_chroot()
   message "Installing portage snapshot"
   command emerge-webrsync
 
+  command mkdir -vp /etc/portage/repos.conf
+  command cp -v /usr/share/portage/config/repos.conf /etc/portage/repos.conf/gentoo.conf
+
   # Set profile
   message "Setting profile"
   command eselect profile list
