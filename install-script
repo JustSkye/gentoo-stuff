@@ -132,13 +132,13 @@ install_gentoo_chroot()
   message "Installing portage snapshot"
   command emerge-webrsync
 
-  command mkdir -vp /etc/portage/repos.conf
-  command cp -v /usr/share/portage/config/repos.conf /etc/portage/repos.conf/gentoo.conf
+  #command mkdir -vp /etc/portage/repos.conf
+  #command cp -v /usr/share/portage/config/repos.conf /etc/portage/repos.conf/gentoo.conf
 
   # Set profile
-  message "Setting profile"
-  command eselect profile list
-  command eselect profile set default/linux/amd64/17.1
+  #message "Setting profile"
+  #command eselect profile list
+  #command eselect profile set default/linux/amd64/17.1
 
   message "Configuring /etc/portage/make.conf"
   cat << EOF > /etc/portage/make.conf
